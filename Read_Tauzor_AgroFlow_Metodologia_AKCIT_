@@ -1,0 +1,105 @@
+# AgroFlow B2B — Metodologia do MVP de Agentes Inteligentes
+> Como um marketplace B2B de hortifruti foi especificado como **sistema de agentes** — e por que o MVP começa por regras determinísticas antes de qualquer LLM.
+>
+> Documento de método, aberto para reuso: cada requisito aqui citado vem de um capítulo da formação em Sistemas de Agentes Inteligentes (OKCIT / EMBRAPII) e aparece ligado a uma decisão concreta no código.
+![status](https://img.shields.io/badge/status-MVP%20em%20operação-8a6a2f)
+![arquitetura](https://img.shields.io/badge/arquitetura-reflexiva-6b7f3a)
+![stack](https://img.shields.io/badge/React-19-1f2937)
+![stack](https://img.shields.io/badge/TypeScript-5.8-1f2937)
+![backend](https://img.shields.io/badge/backend-Readdy-1f2937)
+---
+## Documentos do projeto
+| Documento | Para quem | Conteúdo |
+| --- | --- | --- |
+| `README.md` | Quem quer entender **como o MVP foi pensado** | Metodologia de agentes, requisitos extraídos da formação, decisão de arquitetura e critérios de evolução |
+| [`docs/documentacao-completa.md`](docs/documentacao-completa.md) | Quem precisa do **projeto inteiro em um só lugar** | Produto, jornadas, telas, as 16 demandas de IA, arquitetura técnica, modelo de dados, LGPD e como contribuir |
+| [`docs/roadmap-ia.md`](docs/roadmap-ia.md) | Quem vai **implementar IA** | Especificação detalhada de cada demanda, com regras de negócio, critérios de aceite e riscos |
+---
+## Sumário
+1. [Por que este README existe](#1-por-que-este-readme-existe)
+2. [O problema em uma página](#2-o-problema-em-uma-página)
+3. [Requisitos selecionados dos anexos](#3-requisitos-selecionados-dos-anexos)
+4. [Decisão de arquitetura](#4-decisão-de-arquitetura)
+5. [Padrões de projeto adotados](#5-padrões-de-projeto-adotados)
+6. [Memória em quatro camadas](#6-memória-em-quatro-camadas)
+7. [Ecossistema de ferramentas](#7-ecossistema-de-ferramentas)
+8. [Infraestrutura: o que entra e o que espera](#8-infraestrutura-o-que-entra-e-o-que-espera)
+9. [Laboratório 01 aplicado ao AgroFlow](#9-laboratório-01-aplicado-ao-agroflow)
+10. [Conjunto mínimo de avaliação](#10-conjunto-mínimo-de-avaliação)
+11. [Escopo do MVP](#11-escopo-do-mvp)
+12. [Roadmap de evolução](#12-roadmap-de-evolução)
+13. [Como rodar](#13-como-rodar)
+14. [Referências](#14-referências)
+---
+## 1. Por que este README existe
+A maioria dos projetos de "IA aplicada" começa pelo modelo e depois tenta encaixar o produto nele. Este projeto fez o caminho contrário: começou pelo **problema de negócio**, escolheu a **arquitetura de agente compatível com a tarefa**, implementou a versão mais simples que funciona e deixou a infraestrutura pesada para depois.
+O resultado é um MVP que já opera sem nenhuma API de LLM — e que não quebra quando um provedor de IA cai, porque a IA generativa ainda não é dependência.
+Três regras que guiaram todas as decisões abaixo:
+| Regra | Consequência prática |
+| --- | --- |
+| **Arquitetura antes de ferramenta** | Nenhuma linha de LangChain, CrewAI ou banco vetorial foi escrita antes de a tarefa ser classificada como simples, de observação parcial ou complexa |
+| **Protótipo não vai para produção** | Ferramenta visual serve para validar a ideia; a versão que fica no produto é código tipado e testável |
+| **Cada capacidade é uma ferramenta com contrato** | Extração, precificação e ranking são funções puras com entrada e saída documentadas, chamáveis por qualquer orquestrador futuro |
+---
+## 2. O problema em uma página
+No corredor **Petrolina (PE) · Juazeiro (BA) · Recife (PE)**, a negociação de hortifruti nasce no WhatsApp: texto livre, unidades misturadas, frete implícito, documento ausente e glosa combinada verbalmente.
+O AgroFlow transforma essa conversa em **oferta estruturada**, **demanda estruturada**, **propostas comparáveis** e, por fim, em **pedido com conferência, documentação, doca e liquidação**.
+```
+Vendedor                                     Comprador
+   │  "15 t de manga Kent, caixa 20 kg,          │  "18 t de manga Palmer
+   │   R$ 68 a caixa, Petrolina, dia 20"         │   para Recife até 28/11, extra"
+   ▼                                             ▼
+[ Ferramenta: extração ]                    [ Ferramenta: extração ]
+   │  oferta estruturada + pendências            │  demanda estruturada + pendências
+   ▼                                             ▼
+[ Ferramenta: precificação ]                [ Ferramenta: matching ]
+   │  R$/kg, margem, preço por caixa             │  fornecedores compatíveis com fator explicativo
+   ▼                                             ▼
+Oferta publicada  ──────────────────────►  Propostas recebidas
+                                                 │
+                                                 ▼
+                                     [ Ferramenta: ranking multicritério ]
+                                     (preço entregue · frete · prazo · qualidade · pagamento)
+                                                 │
+                                                 ▼
+                                  Aprovação humana → Pedido → Conferência
+                                                 │
+                        ┌────────────────────────┼────────────────────────┐
+                        ▼                        ▼                        ▼
+                   Documentos              Doca / check-in          Liquidação
+                                                 │
+                                                 ▼
+                                          Trilha de auditoria
+```
+**Telas:** `/` (institucional) · `/vendedor` · `/comprador` · `/pedidos` · `/docas` · `/financeiro`.
+---
+## 3. Requisitos selecionados dos anexos
+Esta é a tabela central do documento: o que o material de formação exige, o que foi decidido no MVP e onde isso aparece no repositório.
+| # | Requisito | Origem | Decisão no MVP | Evidência no código |
+| --- | --- | --- | --- | --- |
+| R1 | Um agente **percebe o ambiente, decide e age** — não existe agente sem os três elementos | Cap. 1 — Fundamentos | Percepção = texto livre ou formulário; decisão = regras explícitas; ação = rascunho aplicável, nunca escrita automática | `OfferAssistant.tsx`, `DemandAssistant.tsx` |
+| R2 | **Classificar a tarefa antes de escolher a arquitetura** | Cap. 2 — Arquiteturas | Extração de campos é tarefa simples com regras claras → arquitetura reflexiva | `offerParser.ts`, `demandParser.ts` |
+| R3 | **Observação parcial exige memória interna** do ambiente | Cap. 2 | Ranking de propostas precisa do "estado" da carteira para normalizar critérios | `proposalScoring.ts` |
+| R4 | **Ambiente dinâmico e objetivos múltiplos** pedem arquitetura híbrida | Cap. 2 | Adiada de propósito: só depois de haver histórico e avaliação (ver §12) | — |
+| R5 | **Planner–Executor**: separar raciocínio de execução | Cap. 2 | Raciocínio (extrair, calcular, ranquear) é separado da execução (aplicar ao formulário, publicar, auditar) | `utils/*` vs. `components/*` |
+| R6 | **Supervisor–Worker**: um coordenador distribui tarefas | Cap. 2 | O comprador é o supervisor; cada capacidade é um worker especializado, sem autonomia de decisão | `ProposalComparer.tsx` |
+| R7 | **Ferramentas/Skills**: agentes acionam APIs, bancos e serviços | Cap. 2 | Toda capacidade exposta como função pura com contrato tipado, pronta para ser chamada por orquestrador | `src/utils/`, `src/types/` |
+| R8 | **Escolher o nível de abstração por estágio** do projeto | Cap. 3 — Ecossistema | Prototipagem visual para validar; produção em TypeScript tipado | ver §7 |
+| R9 | **Validar a ideia antes de investir em infraestrutura** | Cap. 3 | Nenhuma fila, cache distribuído ou framework de orquestração antes do uso real | ver §8 |
+| R10 | **Construir um agente conversacional mínimo e testar a qualidade** | Cap. 4 — Laboratório 01 | Agente 01 = assistente de oferta com recomendação de compradores | §9 |
+| R11 | **Escala e coordenação exigem sistema multiagente e orquestração** | Cap. 5 — Bases vetoriais | Fora do MVP: um agente por vez, chamado por ação do usuário | — |
+| R12 | **Memória em camadas**: curto prazo, semântica, episódica, consolidação | Cap. 6 — Memória | Três das quatro camadas mapeadas; consolidação ainda em memória de sessão | §6 |
+| R13 | **RAG quando falta informação externa** | Cap. 6 | Busca semântica especificada (IA-12), não implementada no MVP | `docs/roadmap-ia.md` |
+| R14 | **Cache e baixa latência** como requisito de infraestrutura | Cap. 7 — Infraestrutura | Cache por hash de mensagem no gateway, quando o LLM entrar | §8 |
+| R15 | **Mensageria e desacoplamento** para fluxos assíncronos | Cap. 7 | Necessário apenas no intake automático e nas notificações de doca | §8 |
+| R16 | **Padrões de coordenação e frameworks** (CrewAI, LangGraph, Mangaba) | Cap. 7 | Adotar somente quando houver mais de um agente concorrente no mesmo fluxo | §7 |
+> A coluna "Origem" aponta para o capítulo do material da formação. A coluna "Decisão" é o que este projeto efetivamente fez — inclusive quando a decisão foi **não fazer agora**.
+---
+## 4. Decisão de arquitetura
+O Cap. 2 apresenta três arquiteturas e um guia de escolha por perfil de tarefa. Aplicado ao AgroFlow:
+| Arquitetura | Perfil de tarefa (Cap. 2) | Onde se aplica no AgroFlow | Situação |
+| --- | --- | --- | --- |
+| **Reflexiva** | Tempo-crítico, ambiente previsível, regras fixas | Extração de oferta e demanda; conversão de unidade; precificação; ranking com pesos explícitos | **Adotada no MVP** |
+| **Baseada em modelo** | Informação incompleta, histórico necessário, estado interno útil | Ranking que depende da carteira de propostas; sugestão de compradores por histórico de volume | **Parcial** — o "modelo" é a própria carteira de dados da sessão |
+| **Híbrida** | Ambiente dinâmico, objetivos múltiplos, planejamento necessário | Negociação com contraproposta, consolidação de cargas, previsão de preço | **Roadmap** |
+### Por que reflexiva
