@@ -265,3 +265,27 @@ Oferta publicada  ────────────────────�
 2. Cobertura parcial abaixo de 60% do volume é marcada como "carga parcial".
 3. Recomendação sempre acompanhada de pelo menos 3 fatores de explicação.
 4. Empate resolvido por menor custo entregue e depois
+
+5. ## 8. Arquitetura de referência de IA
+```
+Navegador (React)
+   │  supabase.functions.invoke('ai-extract', { body })
+   ▼
+Edge Function (gateway de IA)
+   ├─ valida sessão do usuário e organização ativa
+   ├─ aplica limite de uso e cache por hash da mensagem
+   ├─ seleciona versão do prompt
+   ├─ chama o provedor de LLM (chave só em segredo de backend)
+   ├─ valida a resposta contra JSON Schema
+   ├─ em falha, aciona o parser local como fallback
+   ├─ grava em ai_runs (entrada, saída, latência, custo)
+   └─ devolve o mesmo contrato do parser atual
+   ▼
+Interface aplica ao formulário apenas com clique do usuário
+```
+**Regras de arquitetura**
+- Chave de provedor nunca no bundle do cliente.
+- Resposta de modelo nunca é usada sem validação de schema.
+- Fallback local sempre implementado — a IA generativa é melhoria, não dependência.
+- Custo e latência medidos por chamada, não por sessão.
+- Cada capacidade em função separada, para permitir evolução e reversão independentes.
