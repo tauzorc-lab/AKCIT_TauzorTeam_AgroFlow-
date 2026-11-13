@@ -298,3 +298,17 @@ Para qualquer nova capacidade generativa, antes de publicar:
 4. **Métrica por campo:** precisão e recall separados — não usar apenas acurácia global.
 5. **Portão de saída:** precisão ≥ 92% nos campos principais e **zero** alucinação numérica.
 6. **Regressão:** todo caso que falhou vira caso permanente do conjunto.
+
+7. ## 10. Fases de entrega da IA
+### Fase 1 — Extração confiável
+`IA-01` · `IA-02` · `IA-03` · `IA-16` (base)
+Objetivo: oferta e demanda completas com menos digitação e ranking explicado.
+### Fase 2 — Inteligência comercial
+`IA-04` · `IA-05` · `IA-06` · `IA-11` · `IA-12`
+Objetivo: preço com referência, negociação assistida e busca por intenção.
+### Fase 3 — Inteligência operacional
+`IA-07` · `IA-08` · `IA-09` · `IA-10`
+Objetivo: carga consolidada, documento lido e conferência apoiada.
+### Fase 4 — Inteligência de rede
+`IA-13` · `IA-14` · `IA-15`
+Objetivo: intake automático, risco de crédito e doca previsível.
