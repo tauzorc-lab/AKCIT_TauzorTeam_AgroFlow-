@@ -136,6 +136,132 @@ Oferta publicada  ────────────────────�
 | 5 | Comparador demonstrativo da home | `src/pages/home/components/Intelligence.tsx` | Scoring ao vivo no cliente | Pesos ajustáveis pelo visitante | Ranking e recomendação em tempo real |
 ### 6.1 Como a extração funciona (hoje)
 1. **Normalização** — texto em minúsculas, remoção de acentos (NFD) para tolerar "exportação" / "exportacao".
-2. *
 
-3. 
+2. **Dicionário de produtos** — catálogo de produtos e variedades do corredor.
+3. **Expressões por campo** — volume (t/kg), embalagem (caixa/saco/engradado + peso), preço (R$ por kg ou por caixa), qualidade (extra/exportação/industrial/categoria), praça, data (dd/mm ou dd/mm/aaaa), pagamento (à vista, N dias, PIX, boleto).
+4. **Validação de coerência** — preço por caixa sem peso da caixa gera aviso; caixas sem peso não viram kg.
+5. **Contrato de saída** — `draft` (dados extraídos), `found` (rótulo + valor legível), `missing` (obrigatórios ausentes), `warnings` (ambiguidades).
+### 6.2 Como a recomendação funciona (hoje)
+- Cada proposta é pontuada por **preço entregue (preço + frete)**, **frete**, **qualidade**, **prazo de entrega** e **condição de pagamento**.
+- Cada critério é normalizado no intervalo da própria carteira de propostas, com inversão quando menor é melhor.
+- Pesos são definidos pelo comprador e normalizados pela soma.
+- **Critérios eliminatórios** rodam antes da nota: documentação obrigatória ausente, custo entregue acima do orçamento, prazo maior que a data limite.
+- A saída inclui **motivo textual de eliminação** e **quebra por critério** para que a decisão seja auditável.
+### 6.3 Limites conhecidos
+- Vocabulário fechado: produto fora do catálogo não é reconhecido.
+- Sem compreensão de contexto: "a mesma coisa do mês passado" não é resolvido.
+- Sem negociação: o assistente estrutura, não contra-argumenta.
+- Sem aprendizado: nenhuma extração é usada para melhorar o modelo.
+- Sem visão computacional e sem OCR: nada é lido de imagem ou PDF.
+---
+## 7. Demandas de IA
+### 7.0 Princípios não negociáveis
+1. **Humano no comando.** A IA estrutura, sugere e explica. Nunca aprova pedido, nunca altera preço, nunca libera pagamento.
+2. **Explicável por padrão.** Toda recomendação mostra *por que* — critério, valor e peso.
+3. **Degradação elegante.** Sem LLM disponível, o assistente por regras continua funcionando.
+4. **Nada de alucinação numérica.** Preço, volume e prazo só são aceitos quando vieram do texto ou de um cálculo determinístico verificável.
+5. **Dado sensível não sai sem contrato.** Nenhum dado de negociação vai para provedor externo sem aval e sem registro.
+6. **Segredo só no servidor.** Chaves de IA vivem em segredo de backend, nunca no bundle do navegador.
+**Prioridades:** `P0` bloqueia a próxima fase · `P1` alto valor · `P2` ganho incremental.
+### 7.1 Resumo priorizado
+| ID | Demanda | Prioridade | Horizonte | Dependência |
+| --- | --- | --- | --- | --- |
+| IA-01 | Extração robusta com LLM (function calling) + fallback por regras | P0 | Fase 1 | Backend/gateway de IA |
+| IA-02 | Diálogo de esclarecimento (perguntar antes de assumir) | P0 | Fase 1 | IA-01 |
+| IA-03 | Matching oferta ↔ demanda com ranking explicado | P0 | Fase 1 | Dados de oferta/demanda persistidos |
+| IA-04 | Normalização inteligente de unidades e embalagens | P1 | Fase 2 | IA-01 |
+| IA-05 | Assistente de negociação com contraproposta sugerida | P1 | Fase 2 | IA-03, aprovação humana |
+| IA-06 | Previsão de preço por produto, praça e semana | P1 | Fase 2 | Histórico de negociações |
+| IA-07 | Consolidação de cargas e sugestão de rota | P1 | Fase 3 | Docas + fretes |
+| IA-08 | OCR de NF-e, GTV e laudo com validação cruzada | P1 | Fase 3 | Checklist documental |
+| IA-09 | Visão computacional na conferência de carga | P2 | Fase 3 | Fotos + padrão de qualidade |
+| IA-10 | Detecção de anomalia em glosa e liquidação | P2 | Fase 3 | Histórico de liquidação |
+| IA-11 | Redação assistida (RFQ, proposta, mensagem ao motorista) | P2 | Fase 2 | IA-01 |
+| IA-12 | Busca semântica em ofertas e demandas | P2 | Fase 2 | Catálogo indexado |
+| IA-13 | Triagem de mensagens recebidas (intake WhatsApp/e-mail) | P2 | Fase 4 | Canal de entrada |
+| IA-14 | Score de risco de crédito do comprador | P2 | Fase 4 | Histórico financeiro |
+| IA-15 | Copiloto de docas (previsão de atraso e sugestão de janela) | P2 | Fase 4 | Agendamentos |
+| IA-16 | Governança de IA: explicabilidade, avaliação e guarda-corpos | P0 | Contínuo | Todas |
+### 7.2 Métricas de sucesso das demandas
+| Métrica | Meta inicial |
+| --- | --- |
+| Precisão de extração por campo (produto, volume, preço) | ≥ 92% |
+| Taxa de demanda/oferta que chega completa ao formulário | ≥ 80% |
+| Redução de tempo para montar uma oferta | de ~9 min para ≤ 3 min |
+| Recomendação aceita sem edição de pesos | ≥ 60% |
+| Alucinação numérica (valor inexistente no texto) | 0 caso em auditoria |
+| Custo de IA por negociação concluída | dentro do teto definido por fase |
+---
+### IA-01 · Extração robusta com LLM
+**Prioridade:** P0 · **Fase:** 1 · **Depende de:** gateway de IA em Edge Function
+**Contexto.** Hoje os assistentes usam dicionário fechado e expressões regulares. Funcionam bem para o vocabulário do corredor (manga, uva, cebola, melão, acerola), mas quebram com mensagem escrita às pressas: "me vê 400 cx daquelas de 20, entrega na quinta", "tenho 2 carreta de Palmer", "uns 18 mil kg".
+**Objetivo.** Elevar a taxa de extração correta por campo para ≥ 92% em mensagens reais do corredor, mantendo o parser atual como caminho de fallback.
+**Escopo.**
+- Entra: produto, variedade, volume, unidade, embalagem, peso por embalagem, preço, qualidade, praça de origem/destino, data, condição de pagamento, exigência documental.
+- Entra: resposta obrigatória em JSON validado contra schema.
+- Entra: fallback automático ao parser por regras quando o modelo falha, estoura tempo ou devolve JSON inválido.
+- Entra: confiança por campo.
+- Não entra: escrita direta no banco sem confirmação do usuário; cálculo de preço final.
+**Regras de negócio.**
+1. Campo sem evidência no texto retorna `null` — proibido preencher por conveniência.
+2. Preço só é aceito se o texto tiver valor monetário; conversão por caixa exige peso explícito.
+3. Data sem ano assume o próximo ano em que a data ainda é futura.
+4. Toda extração precisa ser aplicável ao formulário com um clique e reversível.
+**Critérios de aceite**
+- [ ] Resposta com o mesmo contrato do parser atual (`draft`, `found`, `missing`, `warnings`).
+- [ ] Schema de resposta validado; resposta inválida nunca chega à interface.
+- [ ] Latência p95 abaixo de 2,5 s para mensagens de até 400 caracteres.
+- [ ] Fallback local acionado em timeout, erro 5xx e JSON inválido.
+- [ ] Chave do provedor somente em segredo de backend.
+- [ ] Teste de regressão com 300 mensagens anotadas, precisão ≥ 92% por campo principal.
+- [ ] Custo por extração registrado e visível no painel interno.
+**Métricas.** Precisão por campo · taxa de fallback · latência p95 · custo por extração · taxa de "aplicar ao formulário".
+**Riscos.**
+| Risco | Mitigação |
+| --- | --- |
+| Alucinação de preço ou volume | Campo sem evidência retorna nulo; validação cruzada com o texto |
+| Custo descontrolado | Cache por hash de mensagem; limite por organização; modelo menor primeiro |
+| Indisponibilidade do provedor | Fallback local sempre disponível |
+| Vazamento de dado comercial | Contrato sem retenção de treino; anonimização de nomes |
+---
+### IA-02 · Diálogo de esclarecimento
+**Prioridade:** P0 · **Fase:** 1 · **Depende de:** IA-01
+**Contexto.** Quando falta um campo, o assistente atual lista pendências de forma passiva. O vendedor no campo lê a lista e não responde.
+**Objetivo.** Transformar pendência em **uma pergunta por vez**, com opções clicáveis, até a oferta ou demanda ficar completa.
+**Escopo.**
+- Entra: ordem de prioridade das perguntas (produto → volume → embalagem → qualidade → praça → data → preço → pagamento).
+- Entra: no máximo 3 perguntas por turno, uma por vez.
+- Entra: opções sugeridas a partir do catálogo e do contexto.
+- Entra: registro do que foi respondido versus inferido.
+- Não entra: insistir mais de uma vez na mesma pergunta.
+**Regras de negócio.**
+1. Uma pergunta por mensagem, sempre com exemplo de resposta.
+2. Campo já respondido não é perguntado de novo.
+3. Ambiguidade de unidade ("400 cx" sem peso) é bloqueante para conversão, não para cadastro.
+4. Após 3 rodadas sem progresso, o assistente entrega o formulário parcial e destaca o que falta.
+**Critérios de aceite**
+- [ ] Assistente mantém estado do rascunho entre turnos.
+- [ ] Cada resposta atualiza visualmente o rascunho estruturado.
+- [ ] Trilha de origem por campo: `texto`, `resposta` ou `inferido`.
+- [ ] Comportamento idêntico ao aplicar ao formulário.
+- [ ] Teste de usabilidade: oferta completa em ≤ 3 rodadas em 70% das sessões.
+**Métricas.** Rodadas médias até completar · taxa de conclusão · abandono por etapa.
+**Riscos.** Irritação com excesso de perguntas → limite rígido por turno e opções clicáveis.
+---
+### IA-03 · Matching oferta ↔ demanda
+**Prioridade:** P0 · **Fase:** 1 · **Depende de:** ofertas e demandas persistidas no Backend
+**Contexto.** O match atual cruza apenas produto e ordena por volume mensal. Não considera variedade, janela de entrega, capacidade, praça, histórico ou documentação.
+**Objetivo.** Produzir um ranking de compatibilidade com justificativa por par oferta-demanda.
+**Escopo.**
+- Entra: compatibilidade por produto e variedade (exata, equivalente, incompatível).
+- Entra: janela de disponibilidade × prazo da demanda.
+- Entra: volume ofertado × volume demandado (cobertura parcial permitida).
+- Entra: distância e frete estimado entre origem e destino.
+- Entra: exigência documental.
+- Entra: histórico de negociação (concluída, recusada, glosa média).
+- Não entra: exclusão automática de fornecedor; apenas ordenação e sinalização.
+**Regras de negócio.**
+1. Incompatibilidade de produto é eliminação dura.
+2. Cobertura parcial abaixo de 60% do volume é marcada como "carga parcial".
+3. Recomendação sempre acompanhada de pelo menos 3 fatores de explicação.
+4. Empate resolvido por menor custo entregue e depois
