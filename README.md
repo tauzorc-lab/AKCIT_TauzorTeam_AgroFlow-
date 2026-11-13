@@ -289,3 +289,12 @@ Interface aplica ao formulário apenas com clique do usuário
 - Fallback local sempre implementado — a IA generativa é melhoria, não dependência.
 - Custo e latência medidos por chamada, não por sessão.
 - Cada capacidade em função separada, para permitir evolução e reversão independentes.
+
+- ## 9. Conjunto de avaliação
+Para qualquer nova capacidade generativa, antes de publicar:
+1. **Massa mínima:** 200 casos reais anonimizados por capacidade.
+2. **Anotação dupla:** dois anotadores por caso; divergência resolvida por terceiro.
+3. **Recortes obrigatórios:** mensagem curta (< 15 palavras), com erro de digitação, com gíria regional, com múltiplos produtos, com unidade ambígua.
+4. **Métrica por campo:** precisão e recall separados — não usar apenas acurácia global.
+5. **Portão de saída:** precisão ≥ 92% nos campos principais e **zero** alucinação numérica.
+6. **Regressão:** todo caso que falhou vira caso permanente do conjunto.
