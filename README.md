@@ -312,3 +312,114 @@ Objetivo: carga consolidada, documento lido e conferência apoiada.
 ### Fase 4 — Inteligência de rede
 `IA-13` · `IA-14` · `IA-15`
 Objetivo: intake automático, risco de crédito e doca previsível.
+
+11. Riscos transversais
+## 11. Riscos transversais
+| Risco | Impacto | Mitigação |
+| --- | --- | --- |
+| Alucinação de número comercial | Alto — prejuízo direto | Campo sem evidência retorna nulo; validação contra o texto; zero tolerância em auditoria |
+| Vazamento de dado entre organizações | Alto — quebra de confiança | Filtro por permissão no servidor, nunca no cliente |
+| Custo de IA fora de controle | Médio | Cache, modelo menor primeiro, limite por organização, painel de custo |
+| Dependência de um único provedor | Médio | Interface de provedor plugável e fallback local |
+| Automação percebida como decisão | Alto — risco comercial | Humano no comando, explicação obrigatória, botão de contestação |
+| Dado pessoal em avaliação de modelo | Alto — LGPD | Anonimização, base legal, retenção mínima, contrato sem treino |
+| Degradação silenciosa de qualidade | Médio | Conjunto de avaliação obrigatório e monitoramento por campo |
+Entre a 11 e a 12 existe um bloco sem número — ele não é a seção 12, então vale colar antes do # PARTE III:
+
+## Definição de pronto (todas as demandas de IA)
+- [ ] Contrato de saída documentado e tipado
+- [ ] Fallback determinístico disponível
+- [ ] Explicação visível na interface
+- [ ] Registro em `ai_runs` com custo e latência
+- [ ] Conjunto de avaliação aprovado
+- [ ] Revisão humana obrigatória nos pontos de decisão
+- [ ] Teste de permissão entre organizações
+- [ ] Documentação atualizada
+12. Arquitetura técnica
+## 12. Arquitetura técnica
+| Camada | Tecnologia |
+| --- | --- |
+| UI | React 19 + TypeScript + Vite |
+| Estilo | Tailwind CSS 3.4 com escala de tokens (background / primary / accent / secondary / foreground) |
+| Ícones | Remix Icon e Font Awesome via CDN |
+| Roteamento | React Router 7 (`src/router/config.tsx`) |
+| Estado de operações | Context provider (`src/store/OperationsProvider.tsx`) |
+| Backend | Readdy Backend (Auth, banco relacional, Storage, Edge Functions) |
+| IA (hoje) | Módulos determinísticos no cliente |
+| IA (futuro) | Gateway em Edge Function + provedor de LLM + versionamento de prompt |
+**Direção arquitetural para IA:** o cliente nunca fala direto com o provedor de LLM. A chamada passa por uma Edge Function que valida sessão, aplica limite de uso, escolhe a versão do prompt, chama o modelo, valida a resposta contra um schema e registra a decisão na trilha de auditoria.
+13. Modelo de dados
+## 13. Modelo de dados
+**Já existentes no Backend:** `product_categories`, `product_items`, `product_variants`, `product_skus`, `product_custom_fields`, `product_custom_values`, `order_headers`, `order_items`.
+**Planejados (dados de demonstração em memória hoje):**
+`organizations` · `profiles` · `memberships` · `offers` · `demands` · `rfqs` · `proposals` · `negotiations` · `approvals` · `orders` · `inspections` · `cargo_documents` · `dock_slots` · `settlements` · `notifications` · `audit_logs`
+**Planejados para IA:** `ai_runs` (entrada, versão de prompt, modelo, saída, latência, custo), `ai_feedback` (aceite/correção humana por campo), `ai_eval_cases` (conjunto de avaliação com mensagens reais anonimizadas).
+14. Como rodar o projeto
+## 14. Como rodar o projeto
+```bash
+# 1. Instalar dependências
+npm install
+# 2. Variáveis de ambiente
+#    .env com VITE_PUBLIC_SUPABASE_URL e VITE_PUBLIC_SUPABASE_ANON_KEY
+#    (fornecidas automaticamente pelo Backend conectado)
+# 3. Ambiente de desenvolvimento
+npm run dev
+# 4. Verificação de tipos
+npm run type-check
+# 5. Build de produção
+npm run build
+```
+15. Estrutura de pastas
+## 15. Estrutura de pastas
+```
+src/
+  components/
+    base/            # componentes básicos reutilizáveis
+    feature/         # navbar, seletor de organização, notificações, auditoria
+  hooks/             # hooks compartilhados
+  i18n/              # internacionalização
+  mocks/             # dados de demonstração (operations, seller, buyer)
+  pages/
+    home/            # home institucional e seções
+    seller/          # jornada do vendedor
+    buyer/           # jornada do comprador
+    orders/          # pedido, conferência, documentos, doca, liquidação
+    docas/           # gestão de docas
+    financeiro/      # liquidação e extrato
+  router/            # configuração de rotas
+  store/             # estado de operações
+  types/             # contratos de tipo
+  utils/             # pricing, offerParser, demandParser, proposalScoring, finance
+docs/
+  documentacao-completa.md   # este documento
+  roadmap-ia.md              # demandas de IA detalhadas
+```
+16. Roadmap de produto
+## 16. Roadmap de produto
+- [x] **Fase 1** — Jornada do vendedor (assistente, precificação, publicação)
+- [x] **Fase 2** — Jornada do comprador (demandas + RFQ)
+- [x] **Fase 3** — Comparador de propostas com pesos e critérios eliminatórios
+- [x] **Fase 4** — Pedido, conferência de carga, documentos, docas e liquidação
+- [ ] **Fase 5** — Organizações, perfis, permissões e auditoria em banco
+- [ ] **Fase 6** — Pedido gerado automaticamente a partir do comparador
+- [ ] **Fase 7** — Matching e consolidação de cargas
+- [ ] **Fase 8** — IA de extração com LLM, matching inteligente e previsão de preço
+17. Segurança, privacidade e LGPD
+## 17. Segurança, privacidade e LGPD
+- **Autenticação e permissões** pelo Backend, com regras por linha (RLS) em todas as tabelas de negócio.
+- **Chaves privadas** apenas em segredos de backend; nunca no código do cliente.
+- **Auditoria append-only** para agendamento, conferência e liquidação.
+- **Dados de demonstração** claramente identificados na interface; não representam negociações reais.
+- **IA atual é local** — nenhum texto digitado nos assistentes sai do navegador.
+- **Quando a IA generativa entrar**, será necessário: base legal para tratamento, contrato com o provedor, retenção mínima, anonimização antes de avaliação de modelo e direito de revisão humana.
+18. Como contribuir
+## 18. Como contribuir
+1. Abra uma issue descrevendo o problema de negócio (não apenas a solução técnica).
+2. Para demandas de IA, use o formato deste documento (contexto, escopo, regras, critérios de aceite, métricas).
+3. Rode `npm run type-check` e `npm run build` antes do pull request.
+4. Mantenha a nomenclatura de domínio em português: oferta, demanda, proposta, conferência, doca, liquidação, glosa.
+5. Não introduza cor fora da escala de tokens do design system.
+19. Licença
+## 19. Licença
+Uso proprietário. Todos os direitos reservados à AgroFlow B2B.
+Dados de demonstração são fictícios e não correspondem a empresas reais.
